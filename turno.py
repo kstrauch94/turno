@@ -5,14 +5,53 @@ import pprint
 
 import calendar
 import textwrap as _textwrap
+from openpyxl import Workbook
+from openpyxl.utils import get_column_letter
+from openpyxl.styles import Font, Color, Alignment, Border, Side, PatternFill, NamedStyle
+
+
+import os
+
+from enum import Enum
 
 DAY_NAME = "day_assigned"
 NIGHT_NAME = "night_assigned"
 
-PERSONS_FILE = "nombres"
-SEPARATED_FILE = "no-juntos"
-DAYS_BLOCKED_FILE = "dias-bloqueados"
-CONSTRAINTS_FILE = "especiales"
+DATA_FOLDER = "data"
+PERSONS_FILE = DATA_FOLDER + os.sep + "nombres"
+SEPARATED_FILE = DATA_FOLDER + os.sep +"no-juntos"
+DAYS_BLOCKED_FILE = DATA_FOLDER + os.sep +"dias-bloqueados"
+CONSTRAINTS_FILE = DATA_FOLDER + os.sep +"especiales"
+
+# styles
+Text_14_bold = Font(size=14, bold=True)
+Text_12_bold = Font(size=12, bold=True)
+Text_12_bold_red = Font(color="00FF0000", size=12, bold=True)
+
+center_aligned_text = Alignment(horizontal="center")
+
+yellow_fill = PatternFill(fill_type="solid", start_color="00FFFF00", end_color="00FFFF00")
+brown_fill = PatternFill(fill_type="solid", start_color="00FFCC99", end_color="00FFCC99")
+
+# full styles
+weekday_style = NamedStyle(name="weekday")
+weekday_style.font = Text_14_bold
+weekday_style.alignment = center_aligned_text
+
+normal_style = NamedStyle(name="normal")
+normal_style.font = Text_12_bold
+normal_style.alignment = center_aligned_text
+
+normal_red_style = NamedStyle(name="normal_red")
+normal_red_style.font = Text_12_bold_red
+normal_red_style.alignment = center_aligned_text
+
+
+def xlref(row, column, zero_indexed=False):
+    if zero_indexed:
+        row += 1
+        column += 1
+    return get_column_letter(column) + str(row)
 
 class ClingoApp(Application):
 	def __init__(self, name):
@@ -24,10 +63,15 @@ class ClingoApp(Application):
 		self.holidays = []
 
 	def __on_model(self, model):
+		self.model = model
+		cal = self.parse_model()
+		self.create_worksheet(cal)
+
+	def parse_model(self):
 		cal = {}
 		totals = {}
 
-		for atom in model.symbols(atoms=True):
+		for atom in self.model.symbols(atoms=True):
 			if "assigned" not in atom.name:
 				continue
 
@@ -44,6 +88,83 @@ class ClingoApp(Application):
 		self.pp.pprint(cal)
 		
 		self.pp.pprint(totals)
+
+		return cal
+
+	def create_worksheet(self, cal):
+		workbook = Workbook()
+		sheet = workbook.active
+
+		row_offset = 4
+		col_offset = 4
+
+		shift_offset = {"day": 1, "night": 3}
+
+
+		cell = sheet.cell(row=row_offset-1, column=col_offset-1)
+		cell.value = "Horario"
+		cell.style = weekday_style
+
+		cell = sheet.cell(row=row_offset-1, column=col_offset-2)
+		cell.value = "Turno"
+		cell.style = weekday_style
+
+
+		weekdaynum_to_weekday = {0: "Lunes", 1: "Martes", 2: "Miercoles", 3: "Jueves", 4: "Viernes", 5: "Sabado", 6: "Domingo"}
+		for i in range(0,7):
+			cell = sheet.cell(row=row_offset-1, column=col_offset+i)
+			cell.value = weekdaynum_to_weekday[i]
+			cell.style = weekday_style
+
+
+		for day in sorted(cal.keys()):
+			weekday,week = cal[day]["type,week"]
+
+			cell = sheet.cell(row=row_offset + week*5, column=col_offset+weekday)
+			cell.value = day
+			cell.style = normal_style
+			if weekday >= 5:
+				cell.font = Text_12_bold_red
+				
+			for shift in ["day", "night"]:
+				for order, person in enumerate(cal[day][shift], start=0):
+					row = row_offset + self.day_to_week[day]*5 + shift_offset[shift] + order
+					col = col_offset + self.day_to_weekday[day]
+					cell = sheet.cell(row=row, column=col)
+					cell.value = person
+					cell.style = normal_style
+					if shift == "day":
+						cell.fill = brown_fill
+
+					if day in self.holidays:
+						cell.font = Text_12_bold_red
+					if weekday >= 5:
+						cell.font = Text_12_bold_red
+						cell.fill = yellow_fill
+
+
+					cell = sheet.cell(row=row, column=col_offset-1)
+					cell.value = "7:00pm - 7:00am"
+					cell.style = normal_style
+					if shift == "day":
+						cell.value = "7:00am - 7:00pm"
+						cell.fill = brown_fill
+
+					cell = sheet.cell(row=row, column=col_offset-2)
+					cell.value = shift
+					cell.style = normal_style
+					if shift == "day":
+						cell.fill = brown_fill
+
+		dims = {}
+		for row in sheet.rows:
+			for cell in row:
+				if cell.value:
+					dims[cell.column_letter] = max((dims.get(cell.column_letter, 0), len(str(cell.value))))    
+		for col, value in dims.items():
+			sheet.column_dimensions[col].width = value
+
+		workbook.save(filename="out.xlsx")
 
 	def register_options(self, options):
 		"""
@@ -226,7 +347,5 @@ class ClingoApp(Application):
 		ctl.ground([("base", [])], self)
 		ctl.solve(on_model=self.__on_model)
 
-		# use this info to make the excel thing?
-		calendar.Calendar().monthdays2calendar(self.year, self.month)
-
+		cal = self.parse_model()
 clingo_main(ClingoApp(sys.argv[0]), sys.argv[1:])
