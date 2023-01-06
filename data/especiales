@@ -1,4 +1,4 @@
-constraint,type_count,talavera,weekday,day,4
+constraint,type_count,talavera,weekday,night,4
 constraint,type_count,talavera,sat,day,2
 constraint,at_most_once_a_week,talavera,weekday
 
