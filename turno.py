@@ -192,7 +192,6 @@ class ClingoApp(Application):
 
 		self.set_sheet_dims(sheet)
 
-
 	def create_hours_sheet(self, cal, sheet):
 		row_offset = 4
 		col_offset = 2
@@ -229,7 +228,6 @@ class ClingoApp(Application):
 						cell.font = Text_12_bold_red
 
 		self.set_sheet_dims(sheet)
-
 
 	def register_options(self, options):
 		"""
@@ -299,7 +297,6 @@ class ClingoApp(Application):
 		ctl.add("base", [], separated)
 		ctl.add("base", [], constraints)
 		
-
 	def parse_persons(self):
 		persons = ""
 		with open(PERSONS_FILE, "r") as _f:
