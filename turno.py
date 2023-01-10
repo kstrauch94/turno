@@ -8,14 +8,17 @@ import textwrap as _textwrap
 from openpyxl import Workbook
 from openpyxl.utils import get_column_letter
 from openpyxl.styles import Font, Color, Alignment, Border, Side, PatternFill, NamedStyle
-
+import itertools
 
 import os
 
 from enum import Enum
 
-DAY_NAME = "day_assigned"
-NIGHT_NAME = "night_assigned"
+DAY = "day"
+NIGHT = "night"
+WEEKDAY = "weekday"
+SAT = "sat"
+SUN = "sun"
 
 DATA_FOLDER = "data"
 PERSONS_FILE = DATA_FOLDER + os.sep + "nombres"
@@ -24,14 +27,16 @@ DAYS_BLOCKED_FILE = DATA_FOLDER + os.sep +"dias-bloqueados"
 CONSTRAINTS_FILE = DATA_FOLDER + os.sep +"especiales"
 
 # styles
-Text_14_bold = Font(size=14, bold=True)
-Text_12_bold = Font(size=12, bold=True)
-Text_12 = Font(size=12)
-Text_12_bold_red = Font(color="00FF0000", size=12, bold=True)
+Text_14_bold = Font(name='Calibri', size=14, bold=True)
+Text_12_bold = Font(name='Calibri', size=12, bold=True)
+Text_12 = Font(name='Calibri', size=12)
+Text_12_bold_red = Font(name='Calibri', color="00FF0000", size=12, bold=True)
 
 center_aligned_text = Alignment(horizontal="center")
 
 yellow_fill = PatternFill(fill_type="solid", start_color="00FFFF00", end_color="00FFFF00")
+orange_fill = PatternFill(fill_type="solid", start_color="00FA9523", end_color="00FA9523")
+green_fill = PatternFill(fill_type="solid", start_color="008FF54C", end_color="008FF54C")
 brown_fill = PatternFill(fill_type="solid", start_color="00FFCC99", end_color="00FFCC99")
 
 border_top_bottom = Border(top=Side(style="medium"), bottom=Side(style="medium"))
@@ -39,7 +44,7 @@ border_top_bottom_left = Border(top=Side(style="medium"), bottom=Side(style="med
 border_top_bottom_right = Border(top=Side(style="medium"), bottom=Side(style="medium"), right=Side(style="medium"))
 
 # full styles
-weekday_style = NamedStyle(name="weekday")
+weekday_style = NamedStyle(name=WEEKDAY)
 weekday_style.font = Text_14_bold
 weekday_style.alignment = center_aligned_text
 
@@ -78,10 +83,9 @@ class ClingoApp(Application):
 
 	def parse_model(self):
 		cal = {}
-		total_days = {}
-		total_hours = {}
-
-		hours_per_person = {}
+		self.total_days = {}
+		self.total_shifts = {}
+		self.hours_per_person_per_shift = {}
 
 		for atom in self.model.symbols(atoms=True):
 			if atom.name == "assigned":
@@ -91,22 +95,26 @@ class ClingoApp(Application):
 
 				shift = atom.arguments[0].name
 
-				cal.setdefault(day_num, {"day": [], "night": [], "type,week": (self.day_to_weekday[day_num] ,self.day_to_week[day_num])})[shift].append(person)
+				cal.setdefault(day_num, {DAY: [], NIGHT: [], "type,week": (self.day_to_weekday[day_num] ,self.day_to_week[day_num])})[shift].append(person)
 
-				total_days.setdefault(person, 0)
-				total_days[person] = total_days[person] + 1
-			
-			if atom.name == "hours_per_person" and len(atom.arguments) == 2:
-				print(atom)
-				person = atom.arguments[0].name
-				hours = atom.arguments[1].number
+				self.total_days.setdefault(person, 0)
+				self.total_days[person] = self.total_days[person] + 1
 
-				total_hours[person] = hours
+				self.total_shifts.setdefault(person, {WEEKDAY: {DAY: 0, NIGHT: 0},
+								SAT: {DAY: 0, NIGHT: 0},
+								SUN: {DAY: 0, NIGHT: 0}	})
+
+
+				self.total_shifts[person][self.get_day_type(day_num)][shift] += 1
+
+
+				self.hours_per_person_per_shift.setdefault(person, []).append(self.hours_per_day[day_num][shift])	
 
 		self.pp.pprint(cal)
 		
-		self.pp.pprint(total_days)
-		self.pp.pprint(total_hours)
+		self.pp.pprint(self.total_shifts)
+
+		self.pp.pprint(self.hours_per_person_per_shift)
 
 		return cal
 
@@ -115,8 +123,12 @@ class ClingoApp(Application):
 
 		self.create_main_sheet(cal, workbook.active)
 
-		sheet_hours = workbook.create_sheet("hours")
-		self.create_hours_sheet(cal, sheet_hours)
+		#sheet_hours = workbook.create_sheet("hours")
+		self.create_hours_table(cal, workbook.active, r_offset=self.get_week_count()*5+5, c_offset=2)
+		self.create_days_per_person_table(workbook.active, r_offset=2, c_offset=12)
+		self.create_hours_per_shift_table(workbook.active, r_offset=self.get_week_count()*5, c_offset=12)
+
+		self.set_sheet_dims(workbook.active)
 
 		workbook.save(filename="out.xlsx")
 
@@ -133,7 +145,7 @@ class ClingoApp(Application):
 		row_offset = 4
 		col_offset = 4
 
-		shift_offset = {"day": 1, "night": 3}
+		shift_offset = {DAY: 1, NIGHT: 3}
 
 		cell = sheet.cell(row=row_offset-2, column=col_offset-1)
 		cell.value = f"Turno para el mes {self.month} del año {self.year}"
@@ -163,14 +175,14 @@ class ClingoApp(Application):
 			if weekday >= 5:
 				cell.font = Text_12_bold_red
 				
-			for shift in ["day", "night"]:
+			for shift in [DAY, NIGHT]:
 				for order, person in enumerate(cal[day][shift], start=0):
 					row = row_offset + self.day_to_week[day]*5 + shift_offset[shift] + order
 					col = col_offset + self.day_to_weekday[day]
 					cell = sheet.cell(row=row, column=col)
 					cell.value = person
 					cell.style = normal_bold_style
-					if shift == "day":
+					if shift == DAY:
 						cell.fill = brown_fill
 
 					if day in self.holidays:
@@ -183,14 +195,14 @@ class ClingoApp(Application):
 					cell = sheet.cell(row=row, column=col_offset-1)
 					cell.value = "7:00pm - 7:00am"
 					cell.style = normal_bold_style
-					if shift == "day":
+					if shift == DAY:
 						cell.value = "7:00am - 7:00pm"
 						cell.fill = brown_fill
 
 					cell = sheet.cell(row=row, column=col_offset-2)
 					cell.value = shift
 					cell.style = normal_bold_style
-					if shift == "day":
+					if shift == DAY:
 						cell.fill = brown_fill
 
 
@@ -204,29 +216,27 @@ class ClingoApp(Application):
 				
 		# *5 since every "row" has the weekday + 2 day shifts + 2 night shifts = 5 actual rows
 		for row in range(row_offset-2, row_offset + (self.get_week_count())*5):
-			for col in range(col_offset-2, col_offset+8):
+			for col in range(col_offset-2, col_offset+7):
 				cell = sheet.cell(row=row, column=col)
 
 				if is_weekday_row(row_offset, row):
 					if col == col_offset-2:
 						cell.border = border_top_bottom_left
-					elif col == col_offset+7:
+					elif col == col_offset+6:
 						cell.border = border_top_bottom_right
 					cell.border = border_top_bottom
 				
 				elif not is_weekday_row(row_offset, row):
 					if col == col_offset-2:
 						cell.border = Border(left=Side("medium"))
-					elif col == col_offset+7:
+					elif col == col_offset+6:
 						cell.border = Border(right=Side("medium"))
 
-		self.set_sheet_dims(sheet)
+	def create_hours_table(self, cal, sheet, r_offset=0, c_offset=0):
+		row_offset = 4 + r_offset
+		col_offset = 2 + c_offset
 
-	def create_hours_sheet(self, cal, sheet):
-		row_offset = 4
-		col_offset = 2
-
-		shift_offset = {"day": 1, "night": 3}
+		shift_offset = {DAY: 1, NIGHT: 3}
 
 
 		weekdaynum_to_weekday = {0: "Lunes", 1: "Martes", 2: "Miercoles", 3: "Jueves", 4: "Viernes", 5: "Sabado", 6: "Domingo"}
@@ -244,20 +254,132 @@ class ClingoApp(Application):
 			cell.style = normal_bold_style
 			cell.fill = yellow_fill
 				
-			for shift in ["day", "night"]:
+			for shift in [DAY, NIGHT]:
 				for order, person in enumerate(cal[day][shift], start=0):
 					row = row_offset + self.day_to_week[day]*5 + shift_offset[shift] + order
 					col = col_offset + self.day_to_weekday[day]
 					cell = sheet.cell(row=row, column=col)
 					cell.value = self.hours_per_day[day][shift]
 					cell.style = normal_style
-					if shift == "day":
+					if shift == DAY:
 						cell.fill = brown_fill
 
 					if day in self.holidays:
 						cell.font = Text_12_bold_red
 
-		self.set_sheet_dims(sheet)
+	def create_days_per_person_table(self, sheet, r_offset=0, c_offset=0):
+		row_offset = 2 + r_offset
+		col_offset = 3 + c_offset
+
+		# header
+		cell = sheet.cell(row=row_offset, column=col_offset)
+		cell.value = "APELLIDO"
+		cell.fill = orange_fill
+		cell.font = Text_12
+
+		for col, shift_daytype in enumerate(itertools.product(["D", "N"], ["SE", "S", "D"]), start=1):
+			shift, day_type = shift_daytype
+			cell = sheet.cell(row=row_offset, column=col + col_offset)
+			cell.value = f"{day_type}-{shift}"
+			cell.fill = orange_fill
+			cell.font = Text_12
+
+		cell = sheet.cell(row=row_offset, column=col + col_offset + 1)
+		cell.value = "SUMA"	
+		cell.fill = orange_fill
+		cell.font = Text_12
+
+		# actual values
+		for row, person in enumerate(self.total_shifts.keys(), start=1):
+			cell = sheet.cell(row=row+row_offset, column=col_offset)
+			cell.value = person
+			cell.fill = green_fill
+			cell.font = Text_12
+
+			for col, shift_daytype in enumerate(itertools.product([DAY, NIGHT], [WEEKDAY, SAT, SUN]), start=1):
+					shift, day_type = shift_daytype
+					cell = sheet.cell(row=row+row_offset, column=col + col_offset)
+					cell.value = self.total_shifts[person][day_type][shift]
+					cell.fill = green_fill
+					cell.font = Text_12
+
+			# cell for the sum of the total days of the person
+			# we make use of the variable from the iterator(col) to know the amount of columns we have
+			cell = sheet.cell(row=row+row_offset, column=col + col_offset + 1)
+			first = xlref(row+row_offset, col_offset + 1)
+			last =  xlref(row+row_offset, col_offset + col)
+			cell.value = f"=SUM({first}:{last})"
+			cell.fill = green_fill
+			cell.font = Text_12
+		
+		# cell of the sum of total days
+		# we make use of the iterator variables (col and row) to know the max row and cols
+		cell = sheet.cell(row=row+row_offset+1, column=col + col_offset + 1)
+		first = xlref(row_offset+1, col_offset + col + 1 )
+		last =  xlref(row+row_offset, col_offset + col + 1)
+		cell.value = f"=SUM({first}:{last})"
+		cell.fill = brown_fill
+		cell.font = Text_12
+
+	def create_hours_per_shift_table(self, sheet, r_offset=0, c_offset=0):
+		row_offset = 2 + r_offset
+		col_offset = 3 + c_offset
+
+		MAX_COLS = 13
+
+		cell = sheet.cell(row=row_offset-1, column=col_offset)
+		cell.value = "APELLIDO"
+		cell.fill = orange_fill
+		cell.font = Text_12
+
+		for col in range(1,MAX_COLS):
+			cell = sheet.cell(row=row_offset-1, column=col_offset+col)
+			cell.value = col
+			cell.fill = orange_fill
+			cell.font = Text_12
+
+		cell = sheet.cell(row=row_offset-1, column=col_offset+col+1)
+		cell.value = "SUMA"
+		cell.fill = orange_fill
+		cell.font = Text_12
+
+		for row, person in enumerate(self.hours_per_person_per_shift.keys(), start=0):
+			# name cell
+			cell = sheet.cell(row=row_offset+row, column=col_offset)
+			cell.value = person
+			if row % 2:
+				cell.font = Text_12_bold_red
+			else:
+				cell.font = Text_12_bold
+
+			# value cells
+			for col, hours in enumerate(self.hours_per_person_per_shift[person], start=1):
+				cell = sheet.cell(row=row_offset+row, column=col_offset+col)
+				cell.value = hours
+				if row % 2:
+					cell.font = Text_12_bold_red
+				else:
+					cell.font = Text_12_bold
+
+			# sum cell
+			cell = sheet.cell(row=row_offset+row, column=col_offset+MAX_COLS)
+			first = xlref(row_offset+row, col_offset+1)
+			last = xlref(row_offset+row, col_offset+col)
+			cell.value = f"=SUM({first}:{last})"
+			if row % 2:
+				cell.font = Text_12_bold_red
+			else:
+				cell.font = Text_12_bold
+
+
+		# total sum cell 
+		cell = sheet.cell(row=row_offset+row+1, column=col_offset+MAX_COLS)
+		first = xlref(row_offset, col_offset+MAX_COLS)
+		last = xlref(row_offset+row, col_offset+MAX_COLS)
+		cell.value = f"=SUM({first}:{last})"
+		cell.font = Text_12_bold
+		cell.fill = brown_fill
+
 
 	def register_options(self, options):
 		"""
@@ -373,13 +495,35 @@ class ClingoApp(Application):
 	def get_week_count(self):
 		return len(calendar.Calendar().monthdays2calendar(self.year, self.month))
 
+	def get_day_type(self, day):
+		if self.day_to_weekday[day] < 5 and self.day_to_weekday[day] >= 0:
+			return WEEKDAY
+		elif self.day_to_weekday[day] == 5:
+			return SAT
+		elif self.day_to_weekday[day] == 6:
+			return SUN
+		else:
+			raise ValueError(f"Value {day} is an invalid number for a weekday")
+
 	def main(self, ctl, files):
 
-		if not self.check_not_none(self.month, "Please add a month via the --month option"):
-			return
+		if self.month is None:
+			month = input("Mes: ")
+			try:
+				self.month = int(month)
+			except:
+				raise ValueError(f"{month} no es un mes valido")
+
+			if self.month > 12 or self.month < 1:
+				raise ValueError(f"{month} no es un mes valido")
+
+		if self.year is None:
+			year = input("Año: ")
+			try:
+				self.year = int(year)
+			except:
+				raise ValueError(f"{year} no es un año valido")
 			
-		if not self.check_not_none(self.year, "Please add a year via the --year option"):
-			return
 
 		ctl.load("turno.lp")
 		for f in files:
@@ -401,18 +545,19 @@ class ClingoApp(Application):
 				if day in self.holidays:
 					day_hours = 12
 					night_hours = 12
-				elif weekday == 5:
+				elif self.get_day_type(day) == SAT:
 					day_hours = 9
 					night_hours = 9
-				elif weekday == 6:
+				elif  self.get_day_type(day) == SUN:
 					day_hours = 12
 					night_hours = 12
 				else:
 					day_hours = 3
 					night_hours = 4
 
-				self.hours_per_day[day] = {"day": day_hours,
-									  "night": night_hours}
+				self.hours_per_day[day] = {DAY: day_hours,
+									  NIGHT: night_hours}
+
 		atoms = ""
 		max_hours = 0
 		for day, shifts in self.hours_per_day.items():
@@ -439,4 +584,5 @@ class ClingoApp(Application):
 		ctl.solve(on_model=self.__on_model)
 
 		cal = self.parse_model()
+		
 clingo_main(ClingoApp(sys.argv[0]), sys.argv[1:])
