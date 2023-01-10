@@ -18,7 +18,7 @@ special_days(P) :- special_days(P,_).
 week(0..4, weekday).
 week(5,sat).
 week(6,sun).
-#show week/2.
+%#show week/2.
 
 persons(C) :- C = #count{ P : person(P) }.
 
@@ -33,7 +33,7 @@ fixed_persons(F) :- #count{P: special_days(P) } = F.
 
 min_max(@min_max((D,S,P,F)), @min_max((D,S,P,F))+1) :- persons(P), fixed_days(S), fixed_persons(F), max_days(D).
 
-#show min_max/2.
+%#show min_max/2.
 
 % SHIFT ASSIGNMENT -----------------------------------------------------------------------
 
@@ -95,6 +95,7 @@ max_total_hours(T-1) :- max_total_hours(T), T > 0.
 
 #minimize{T: max_total_hours(T)}.
 
-#show hours_per_person/1.
-#show max_hours/1.
-#show hours_per_person/2.
+%#show hours_per_person/1.
+%#show max_hours/1.
+%#show hours_per_person/2.
+#show.
