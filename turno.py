@@ -108,13 +108,7 @@ class ClingoApp(Application):
 				self.total_shifts[person][self.get_day_type(day_num)][shift] += 1
 
 
-				self.hours_per_person_per_shift.setdefault(person, []).append(self.hours_per_day[day_num][shift])	
-
-		self.pp.pprint(cal)
-		
-		self.pp.pprint(self.total_shifts)
-
-		self.pp.pprint(self.hours_per_person_per_shift)
+				self.hours_per_person_per_shift.setdefault(person, []).append(self.hours_per_day[day_num][shift])
 
 		return cal
 
@@ -130,7 +124,7 @@ class ClingoApp(Application):
 
 		self.set_sheet_dims(workbook.active)
 
-		workbook.save(filename="out.xlsx")
+		workbook.save(filename=f"{self.month}-{self.year}.xlsx")
 
 	def set_sheet_dims(self, sheet):
 		dims = {}
@@ -379,7 +373,6 @@ class ClingoApp(Application):
 		cell.value = f"=SUM({first}:{last})"
 		cell.font = Text_12_bold
 		cell.fill = brown_fill
-
 
 	def register_options(self, options):
 		"""
