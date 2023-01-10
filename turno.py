@@ -271,8 +271,8 @@ class ClingoApp(Application):
 		cell.fill = orange_fill
 		cell.font = Text_12
 
-		for col, shift_daytype in enumerate(itertools.product(["D", "N"], ["SE", "S", "D"]), start=1):
-			shift, day_type = shift_daytype
+		for col, daytype_shift in enumerate(itertools.product(["SE", "S", "D"], ["D", "N"]), start=1):
+			day_type, shift = daytype_shift
 			cell = sheet.cell(row=row_offset, column=col + col_offset)
 			cell.value = f"{day_type}-{shift}"
 			cell.fill = orange_fill
@@ -290,8 +290,8 @@ class ClingoApp(Application):
 			cell.fill = green_fill
 			cell.font = Text_12
 
-			for col, shift_daytype in enumerate(itertools.product([DAY, NIGHT], [WEEKDAY, SAT, SUN]), start=1):
-					shift, day_type = shift_daytype
+			for col, daytype_shift in enumerate(itertools.product([WEEKDAY, SAT, SUN], [DAY, NIGHT]), start=1):
+					day_type, shift = daytype_shift
 					cell = sheet.cell(row=row+row_offset, column=col + col_offset)
 					cell.value = self.total_shifts[person][day_type][shift]
 					cell.fill = green_fill
