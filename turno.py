@@ -527,14 +527,17 @@ class ClingoApp(Application):
 
 		if len(self.holidays) == 0:
 			holidays = input("Dias Feriados: ")
-			try:
-				self.holidays = [int(day) for day in holidays.split(",")]
-			except:
-				raise ValueError(f"{day} no es un dia valido")
-
-			for day in self.holidays:
-				if day < 1 or day > 31:
+			if holidays != "":
+				try:
+					self.holidays = [int(day) for day in holidays.split(",")]
+				except:
 					raise ValueError(f"{day} no es un dia valido")
+
+				for day in self.holidays:
+					if day < 1 or day > 31:
+						raise ValueError(f"{day} no es un dia valido!")
+			else:
+				holidays = []
 
 		ctl.load("turno.lp")
 		for f in files:
