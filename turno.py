@@ -34,6 +34,8 @@ center_aligned_text = Alignment(horizontal="center")
 yellow_fill = PatternFill(fill_type="solid", start_color="00FFFF00", end_color="00FFFF00")
 brown_fill = PatternFill(fill_type="solid", start_color="00FFCC99", end_color="00FFCC99")
 
+thick_top_bottom = Border(top=Side(style="thick"), bottom=Side(style="thick"))
+
 # full styles
 weekday_style = NamedStyle(name="weekday")
 weekday_style.font = Text_14_bold
@@ -76,6 +78,8 @@ class ClingoApp(Application):
 		cal = {}
 		total_days = {}
 		total_hours = {}
+
+		hours_per_person = {}
 
 		for atom in self.model.symbols(atoms=True):
 			if atom.name == "assigned":
@@ -133,15 +137,19 @@ class ClingoApp(Application):
 		cell.value = f"Turno para el mes {self.month} del año {self.year}"
 		cell.font = Text_14_bold
 		cell.alignment = center_aligned_text
+		cell.border = thick_top_bottom
+
 
 
 		cell = sheet.cell(row=row_offset-1, column=col_offset-1)
 		cell.value = "Horario"
 		cell.style = weekday_style
+		cell.border = thick_top_bottom
 
 		cell = sheet.cell(row=row_offset-1, column=col_offset-2)
 		cell.value = "Turno"
 		cell.style = weekday_style
+		cell.border = thick_top_bottom
 
 
 		weekdaynum_to_weekday = {0: "Lunes", 1: "Martes", 2: "Miercoles", 3: "Jueves", 4: "Viernes", 5: "Sabado", 6: "Domingo"}
@@ -149,6 +157,7 @@ class ClingoApp(Application):
 			cell = sheet.cell(row=row_offset-1, column=col_offset+i)
 			cell.value = weekdaynum_to_weekday[i]
 			cell.style = weekday_style
+			cell.border = thick_top_bottom
 
 
 		for day in sorted(cal.keys()):
@@ -157,6 +166,7 @@ class ClingoApp(Application):
 			cell = sheet.cell(row=row_offset + week*5, column=col_offset+weekday)
 			cell.value = day
 			cell.style = normal_bold_style
+			cell.border = thick_top_bottom
 			if weekday >= 5:
 				cell.font = Text_12_bold_red
 				
@@ -352,8 +362,6 @@ class ClingoApp(Application):
 		for f in files:
 			if "turno.lp" not in f:
 				ctl.load(f)
-		if not files:
-			ctl.load("-")
 
 		self.hours_per_day = {}
 
