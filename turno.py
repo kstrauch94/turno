@@ -34,7 +34,9 @@ center_aligned_text = Alignment(horizontal="center")
 yellow_fill = PatternFill(fill_type="solid", start_color="00FFFF00", end_color="00FFFF00")
 brown_fill = PatternFill(fill_type="solid", start_color="00FFCC99", end_color="00FFCC99")
 
-thick_top_bottom = Border(top=Side(style="thick"), bottom=Side(style="thick"))
+border_top_bottom = Border(top=Side(style="medium"), bottom=Side(style="medium"))
+border_top_bottom_left = Border(top=Side(style="medium"), bottom=Side(style="medium"), left=Side(style="medium"))
+border_top_bottom_right = Border(top=Side(style="medium"), bottom=Side(style="medium"), right=Side(style="medium"))
 
 # full styles
 weekday_style = NamedStyle(name="weekday")
@@ -137,28 +139,20 @@ class ClingoApp(Application):
 		cell.value = f"Turno para el mes {self.month} del año {self.year}"
 		cell.font = Text_14_bold
 		cell.alignment = center_aligned_text
-		cell.border = thick_top_bottom
-
-
 
 		cell = sheet.cell(row=row_offset-1, column=col_offset-1)
 		cell.value = "Horario"
 		cell.style = weekday_style
-		cell.border = thick_top_bottom
 
 		cell = sheet.cell(row=row_offset-1, column=col_offset-2)
 		cell.value = "Turno"
 		cell.style = weekday_style
-		cell.border = thick_top_bottom
-
 
 		weekdaynum_to_weekday = {0: "Lunes", 1: "Martes", 2: "Miercoles", 3: "Jueves", 4: "Viernes", 5: "Sabado", 6: "Domingo"}
 		for i in range(0,7):
 			cell = sheet.cell(row=row_offset-1, column=col_offset+i)
 			cell.value = weekdaynum_to_weekday[i]
 			cell.style = weekday_style
-			cell.border = thick_top_bottom
-
 
 		for day in sorted(cal.keys()):
 			weekday,week = cal[day]["type,week"]
@@ -166,7 +160,6 @@ class ClingoApp(Application):
 			cell = sheet.cell(row=row_offset + week*5, column=col_offset+weekday)
 			cell.value = day
 			cell.style = normal_bold_style
-			cell.border = thick_top_bottom
 			if weekday >= 5:
 				cell.font = Text_12_bold_red
 				
@@ -199,6 +192,33 @@ class ClingoApp(Application):
 					cell.style = normal_bold_style
 					if shift == "day":
 						cell.fill = brown_fill
+
+
+		
+		# add row offset -2 and -1 so it has the headers
+		# the rest is the weekday numbers
+
+		def is_weekday_row(row_offset, row):
+
+			return (row -  row_offset) % 5 == 0
+				
+		# *5 since every "row" has the weekday + 2 day shifts + 2 night shifts = 5 actual rows
+		for row in range(row_offset-2, row_offset + (self.get_week_count())*5):
+			for col in range(col_offset-2, col_offset+8):
+				cell = sheet.cell(row=row, column=col)
+
+				if is_weekday_row(row_offset, row):
+					if col == col_offset-2:
+						cell.border = border_top_bottom_left
+					elif col == col_offset+7:
+						cell.border = border_top_bottom_right
+					cell.border = border_top_bottom
+				
+				elif not is_weekday_row(row_offset, row):
+					if col == col_offset-2:
+						cell.border = Border(left=Side("medium"))
+					elif col == col_offset+7:
+						cell.border = Border(right=Side("medium"))
 
 		self.set_sheet_dims(sheet)
 
@@ -349,6 +369,9 @@ class ClingoApp(Application):
 					constraints += f"special_days({constraint[1]},{constraint[2]}).\n"
 
 		return constraints
+
+	def get_week_count(self):
+		return len(calendar.Calendar().monthdays2calendar(self.year, self.month))
 
 	def main(self, ctl, files):
 
