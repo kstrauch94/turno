@@ -69,6 +69,7 @@ def xlref(row, column, zero_indexed=False):
 
 class ClingoApp(Application):
 	def __init__(self, name):
+		self.version = "0.1.5"
 		self.program_name = name
 		self.pp = pprint.PrettyPrinter(indent=4)
 
