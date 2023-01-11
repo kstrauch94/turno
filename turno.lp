@@ -77,7 +77,15 @@ Min/2 {assigned(night,P,D) : day(D)} Max/2 + 1:- person(P), turn_days(P,Min,Max)
 :- assigned(T,P,D), assigned(T,P',D), P<P', single(P), single(P').
 
 % must not assign a person to a blocked day
+% P person | D date
 :- constraint(blocked, (P,D)), assigned(_,P,D).
+
+% Must not assign a person to a blocked shift
+% P person | T day night | D date
+:- constraint(blocked_shift, (P,T,D)), assigned(T,P,D).
+
+% must assign a person to a fixed shift
+% P person | T day night | D date
 :- constraint(fixed, (P,T,D)), not assigned(T,P,D).
 
 %#show assigned/3.
