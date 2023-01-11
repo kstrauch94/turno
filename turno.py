@@ -91,6 +91,7 @@ class ClingoApp(Application):
 			if atom.name == "assigned":
 
 				person = atom.arguments[1].name
+				person = person.capitalize()
 				day_num = atom.arguments[2].number
 
 				shift = atom.arguments[0].name
@@ -134,6 +135,10 @@ class ClingoApp(Application):
 					dims[cell.column_letter] = max((dims.get(cell.column_letter, 0), len(str(cell.value))))    
 		for col, value in dims.items():
 			sheet.column_dimensions[col].width = value + 3
+
+	def is_weekday_row(self, row_offset, row):
+
+		return (row -  row_offset) % 5 == 0
 
 	def create_main_sheet(self, cal, sheet):
 		row_offset = 4
@@ -199,28 +204,39 @@ class ClingoApp(Application):
 					if shift == DAY:
 						cell.fill = brown_fill
 
+		# sum of shifts in the week
 
-		
 		# add row offset -2 and -1 so it has the headers
 		# the rest is the weekday numbers
-
-		def is_weekday_row(row_offset, row):
-
-			return (row -  row_offset) % 5 == 0
-				
+		for row in range(row_offset+1, row_offset + (self.get_week_count())*5):
+			if self.is_weekday_row(row_offset, row):
+				continue
+			cell = sheet.cell(row=row, column=col_offset+7)
+			first = xlref(row, col_offset)
+			last = xlref(row, col_offset+6)
+			cell.value = f"=COUNTA({first}:{last})"
+			cell.fill = orange_fill
+		
+		cell = sheet.cell(row=row_offset + (self.get_week_count()*5) + 1, column=col_offset+7)
+		first = xlref(row_offset+1, col_offset+7)
+		last = xlref(row_offset + (self.get_week_count()*5) - 1, col_offset+7)
+		cell.value = f"=SUM({first}:{last})"
+		cell.fill = green_fill
+	
+		# border of cells
 		# *5 since every "row" has the weekday + 2 day shifts + 2 night shifts = 5 actual rows
 		for row in range(row_offset-2, row_offset + (self.get_week_count())*5):
 			for col in range(col_offset-2, col_offset+7):
 				cell = sheet.cell(row=row, column=col)
 
-				if is_weekday_row(row_offset, row):
+				if self.is_weekday_row(row_offset, row):
 					if col == col_offset-2:
 						cell.border = border_top_bottom_left
 					elif col == col_offset+6:
 						cell.border = border_top_bottom_right
 					cell.border = border_top_bottom
 				
-				elif not is_weekday_row(row_offset, row):
+				elif not self.is_weekday_row(row_offset, row):
 					if col == col_offset-2:
 						cell.border = Border(left=Side("medium"))
 					elif col == col_offset+6:
@@ -260,6 +276,21 @@ class ClingoApp(Application):
 
 					if day in self.holidays:
 						cell.font = Text_12_bold_red
+
+		for row in range(row_offset+1, row_offset + (self.get_week_count())*5):
+			if self.is_weekday_row(row_offset, row):
+				continue
+			cell = sheet.cell(row=row, column=col_offset+7)
+			first = xlref(row, col_offset)
+			last = xlref(row, col_offset+6)
+			cell.value = f"=SUM({first}:{last})"
+			cell.fill = orange_fill
+		
+		cell = sheet.cell(row=row_offset + (self.get_week_count()*5) + 1, column=col_offset+7)
+		first = xlref(row_offset+1, col_offset+7)
+		last = xlref(row_offset + (self.get_week_count()*5) - 1, col_offset+7)
+		cell.value = f"=SUM({first}:{last})"
+		cell.fill = green_fill
 
 	def create_days_per_person_table(self, sheet, r_offset=0, c_offset=0):
 		row_offset = 2 + r_offset
@@ -541,8 +572,13 @@ class ClingoApp(Application):
 
 		self.day_to_weekday = {}
 		self.day_to_week = {}
-		days = calendar.monthrange(self.year, self.month)[1]
+
+		self.days_in_week = {}
+
+		dates = calendar.monthrange(self.year, self.month)[1]
 		for i, week in enumerate(calendar.Calendar().monthdays2calendar(self.year, self.month)):
+			self.days_in_week[i] = len(week)
+			# day is the date, weekday is in numbers if its monday, tuesday etc. 5 is saturday, 6 in sunday
 			for day, weekday in week:
 				if day == 0:
 					continue
@@ -585,7 +621,7 @@ class ClingoApp(Application):
 		s2 = ".\n".join([f"day_to_week({day},{week})" for day, week in self.day_to_week.items()]) + ".\n"
 		ctl.add("base", [], s2)
 
-		ctl.add("base", [], f"max_days({days}).")
+		ctl.add("base", [], f"max_days({dates}).")
 
 		ctl.ground([("base", [])], self)
 		ctl.solve(on_model=self.__on_model)
