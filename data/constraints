@@ -1,0 +1,10 @@
+constraint,at_most_once_a_week,talavera,weekday
+constraint,blocked,talavera,24
+constraint,blocked_shift,talavera,day,12
+constraint,type_count,talavera,sat,day,2
+constraint,type_count,talavera,weekday,night,4
+exception,even_distribution,talavera
+single,espinoza
+single,lazo
+single,rodriguez
+special_days,talavera,6
