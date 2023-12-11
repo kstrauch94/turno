@@ -86,6 +86,10 @@ class ClingoApp(Application):
 
     def parse_model(self):
         cal = {}
+        
+        self.total_days = {}
+        self.total_shifts = {}
+        self.hours_per_person_per_shift = {}
 
         for atom in self.model.symbols(atoms=True):
             if atom.name == "assigned":
