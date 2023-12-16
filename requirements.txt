@@ -1,0 +1,4 @@
+clingo
+openpyxl
+multiprocess
+pysimplegui
