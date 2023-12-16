@@ -30,6 +30,8 @@ Las restricciones son las siguientes:
 - ***constraint,at_most_once_a_week,nombre,tipo-dia***
 - ***constraint,fixed,nombre,turno,fecha***
 - ***constraint,blocked_shift,nombre,turno,fecha***
+- ***constraint,blocked_shift,nombre,turno,fecha***
+- ***constraint,blocked_shift,nombre,turno,fecha***
 - ***exception,even_distribution,nombre***
 - ***special_days,nombre,cantidad***
 
