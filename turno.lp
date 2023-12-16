@@ -6,6 +6,7 @@
 #defined max_hours/1.
 #defined hours/3.
 #defined day_to_weekday/2.
+#defined vacation/1.
 % day_to_weekday(day number, type of weekday as a number)
 
 #defined day_to_week/2.
@@ -88,15 +89,23 @@ Min/2 {assigned(night,P,D) : day(D)} Max/2 + 1:- person(P), turn_days(P,Min,Max)
 % P person | T day night | D date
 :- constraint(fixed, (P,T,D)), not assigned(T,P,D).
 
+% incompatible names
+:- constraint(incompatible,(P,P2)), person(P), person(P2), P!=P2,
+    assigned(T,P,D), assigned(T,P2,D).
+
+% forbid vacations assignments for a person
+:- constraint(forbid_vacation_assign, (P)), assigned(_,P,D), vacation(D).
+
 %#show assigned/3.
 
 % OPTIMIZATION --------------------------------------------------------------------------
 
 % try to evenly distribute extra hours for each person
 
-hours_per_person(M/P) :- max_hours(M), persons(P).
+% hours_per_person(M/P) :- max_hours(M), persons(P).
 
-hours_per_person(P,T) :- T = #sum{ H,S,D : assigned(S,P,D), hours(S,D,H)}, person(P).
+% if a person has special_days then we dont include in the minimize
+hours_per_person(P,T) :- T = #sum{ H,S,D : assigned(S,P,D), hours(S,D,H)}, person(P), not special_days(P).
 
 max_total_hours(T) :- hours_per_person(P,T).
 max_total_hours(T-1) :- max_total_hours(T), T > 0.

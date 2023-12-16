@@ -39,6 +39,10 @@ class ConstraintGUI:
         self.event_to_popup["c_at_most_once_a_week"] = self.at_most_once_a_week_popup
         self.event_to_popup["c_even_distribution"] = self.even_distribution_popup
         self.event_to_popup["c_special_days"] = self.special_days_popup
+        self.event_to_popup["c_fixed"] = self.fixed_popup
+        self.event_to_popup["c_incompatible"]  = self.incompatible_popup
+        self.event_to_popup["c_forbid_vacation_assign"] = self.forbid_vacation_assign_popup
+
         
 
         try:
@@ -58,6 +62,8 @@ class ConstraintGUI:
 
         self.fontsize = 14
         self.window_width, self.window_height = 1500, 600
+
+        self.clingo_ctl_arguments = []
 
         sg.theme('DarkAmber')   # Add a touch of color
 
@@ -240,6 +246,85 @@ class ConstraintGUI:
 
         return return_val
 
+    def fixed_popup(self):
+        layout = [ 
+                    [sg.Text("Name: "), sg.Combo(self.names, default_value=self.names[0], key="name")],
+                    [sg.Text("Shift: "), sg.Combo([DAY,NIGHT], default_value=DAY, key="shift")],
+                    [sg.Text("Date: "), sg.Combo(list(range(1,32)), default_value=1, key="date")],
+                    [sg.Button("Add"), sg.Button("Cancel")],
+                ]
+        window = sg.Window("Fixed Constraint", layout=layout, size=(200,200), 
+                        auto_size_text=True, resizable=True,finalize=True,
+                        modal=True)
+
+        return_val = []
+        while True:  # Event Loop
+            event, values = window.read()
+
+            if event == sg.WIN_CLOSED or event == 'Cancel':
+                break
+
+            elif event == "Add":
+                return_val.append(f"constraint,fixed,{values['name']},{values['shift']},{values['date']}")
+                break
+
+        window.close()
+
+        return return_val
+    
+    def incompatible_popup(self):
+        layout = [ 
+            [sg.Text("Name 1: "), sg.Combo(self.names, default_value=self.names[0], key="name_1")],
+            [sg.Text("Name 2: "), sg.Combo(self.names, default_value=self.names[0], key="name_2")],
+            [sg.Button("Add"), sg.Button("Cancel")],
+        ]
+        window = sg.Window("incompatible Constraint", layout=layout, size=(200,200), 
+                        auto_size_text=True, resizable=True,finalize=True,
+                        modal=True)
+
+        return_val = []
+        while True:  # Event Loop
+            event, values = window.read()
+
+            if event == sg.WIN_CLOSED or event == 'Cancel':
+                break
+
+            elif event == "Add":
+                if values["name_1"] == values["name_2"]:
+                    sg.popup_ok("Names must be different!", no_titlebar=True)
+                    continue
+
+                return_val.append(f"constraint,incompatible,{values['name_1']},{values['name_2']}")
+                break
+
+        window.close()
+
+        return return_val
+    
+    def forbid_vacation_assign_popup(self):
+        layout = [ 
+            [sg.Text("Name: "), sg.Combo(self.names, default_value=self.names[0], key="name")],
+            [sg.Button("Add"), sg.Button("Cancel")],
+        ]
+        window = sg.Window("Forbid Vacation Assignment Constraint", layout=layout, size=(200,200), 
+                        auto_size_text=True, resizable=True,finalize=True,
+                        modal=True)
+
+        return_val = []
+        while True:  # Event Loop
+            event, values = window.read()
+
+            if event == sg.WIN_CLOSED or event == 'Cancel':
+                break
+
+            elif event == "Add":
+                return_val.append(f"constraint,forbid_vacation_assign,{values['name']}")
+                break
+
+        window.close()
+
+        return return_val
+
     def clingo_run_popup(self):
         process = None
 
@@ -273,7 +358,7 @@ class ConstraintGUI:
                                         "--year",     f"{values['run_year']}", 
                                         "--holidays", f"{values['run_holidays']}"]
 
-                process = mp.Process(target=clingo_main, args=(ClingoApp(), clingo_app_arguments))
+                process = mp.Process(target=clingo_main, args=(ClingoApp(), clingo_app_arguments + self.clingo_ctl_arguments))
 
                 process.start()
 
@@ -308,6 +393,9 @@ class ConstraintGUI:
                     [sg.Text("Add constraint at most once a week:"), sg.Push(), sg.Button("Add", key="c_at_most_once_a_week")],
                     [sg.Text("Add exception even distribution:"), sg.Push(), sg.Button("Add", key="c_even_distribution")],
                     [sg.Text("Add special days:"), sg.Push(), sg.Button("Add", key="c_special_days")],
+                    [sg.Text("Add constraint fixed:"), sg.Push(), sg.Button("Add", key="c_fixed")],
+                    [sg.Text("Add constraint incompatible:"), sg.Push(), sg.Button("Add", key="c_incompatible")],
+                    [sg.Text("Add constraint forbid vacation assign:"), sg.Push(), sg.Button("Add", key="c_forbid_vacation_assign")],
                     [sg.Button('Delete', key="delete_constraint")],
                    ]
         
@@ -323,8 +411,8 @@ class ConstraintGUI:
                       ]
 
         layout = [
-                    [sg.Listbox(self.lines, size=(50, len(self.lines)), key='selected_constraint', expand_y=True), sg.Frame(title="", layout=const_add_layout), sg.Frame(title="", layout=const_filter_layout)],
-                    [sg.Listbox(self.names, size=(50, len(self.names)), key='selected_name', expand_y=True), sg.Frame(title="", layout=name_layout)],
+                    [sg.Listbox(self.lines, size=(50, len(self.lines)), key='selected_constraint', expand_y=True, select_mode=sg.LISTBOX_SELECT_MODE_EXTENDED), sg.Frame(title="", layout=const_add_layout), sg.Frame(title="", layout=const_filter_layout)],
+                    [sg.Listbox(self.names, size=(50, len(self.names)), key='selected_name', expand_y=True, select_mode=sg.LISTBOX_SELECT_MODE_EXTENDED), sg.Frame(title="", layout=name_layout)],
                  ]
 
         self.main_window = sg.Window('Window Title', layout, size=(self.window_width, self.window_height),
@@ -339,14 +427,17 @@ class ConstraintGUI:
             elif event == 'delete_constraint':
                 if len(values["selected_constraint"]) > 0:
                     # change the "output" element to be the value of "input" element
-                    self.lines.remove(values["selected_constraint"][0])
+                    for val in values["selected_constraint"]:
+                        self.lines.remove(val)
+
                     self.lines = sorted(set(self.lines))
                     self.main_window["selected_constraint"].update(sorted(self.lines))
 
             elif event == 'delete_name':
                 if len(values["selected_name"]) > 0:
                     # change the "output" element to be the value of "input" element
-                    self.names.remove(values["selected_name"][0])
+                    for val in values["selected_name"]:
+                        self.names.remove(val)
                     self.names = sorted(set(self.names))
                     self.main_window["selected_name"].update(sorted(self.names))
 

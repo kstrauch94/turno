@@ -492,8 +492,8 @@ class ClingoApp(Application):
                 if len(constraint) == 0 or len(constraint) == 1:
                     continue
                 try:
-                    if constraint[0] == "single":
-                        constraints += f"single({constraint[1]}).\n"
+                    if len(constraint) == 2:
+                        constraints += f"{constraint[0]}({constraint[1]}).\n"
                     elif len(constraint) == 3:
                         constraints += f"{constraint[0]}({constraint[1]},{constraint[2]}).\n"
                     else:
@@ -501,15 +501,6 @@ class ClingoApp(Application):
                 except IndexError:
                     print(f"Error leyendo: {constraint}")
                     raise
-                # if constraint[0] == "constraint":
-                # 	constraints += f"constraint({constraint[1]}, ({','.join(constraint[2:])})).\n"
-                
-                # elif constraint[0] == "exception":
-                # 	constraints += f"exception({constraint[1]}, ({','.join(constraint[2:])})).\n"
-
-                # elif constraint[0] == "special_days":
-                # 	constraints += f"special_days({constraint[1]},{constraint[2]}).\n"
-                
 
         return constraints
 
@@ -612,6 +603,10 @@ class ClingoApp(Application):
 
         ctl.add("base", [], f"max_hours({max_hours}).\n")
 
+        if len(self.holidays) > 0:
+            vacs = ".\n".join([f"vacation({day})" for day in self.holidays]) + ".\n"
+            ctl.add("base", [], vacs)
+
         s1 = ".\n".join([f"day_to_weekday({day},{weekday})" for day, weekday in self.day_to_weekday.items()]) + ".\n"
         ctl.add("base", [], s1)
         
@@ -624,4 +619,5 @@ class ClingoApp(Application):
         ctl.solve(on_model=self.__on_model)
 
 if __name__ == "__main__":
+    print("Starting clingo runner")
     clingo_main(ClingoApp(), sys.argv[1:])
